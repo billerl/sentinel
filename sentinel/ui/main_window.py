@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QRadioButton,
     QFileDialog,
+    QCheckBox,
 )
 from PySide6.QtGui import QImage, QPixmap, QIcon, QCloseEvent, QResizeEvent
 from PySide6.QtCore import Qt, QTimer
@@ -31,6 +32,7 @@ from sentinel.constants import (
     CAPTURE_DIR,
     VIDEO_DIR,
     STYLESHEET,
+    MOTION_COOLDOWN,
 )
 from sentinel.detection import MotionDetector
 from sentinel.audio import AudioAlertSystem
@@ -101,7 +103,7 @@ class MainWindow(QMainWindow):
         # Apply stylesheet
         self.setStyleSheet(STYLESHEET)
 
-    def setup_control_panel(self) -> None:
+    def setup_control_panel(self):
         """Set up the left control panel with all controls."""
         # Create control panel container
         self.control_widget = QWidget()
@@ -113,6 +115,7 @@ class MainWindow(QMainWindow):
         self.setup_camera_controls()
         self.setup_speech_controls()
         self.setup_orientation_controls()
+        self.setup_recording_controls()  # Add this line
 
         # Add status label
         self.status_label = QLabel("Camera: Disconnected")
@@ -350,13 +353,13 @@ class MainWindow(QMainWindow):
         """
         # Convert BGR to RGB for Qt
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        
+
         # Create QImage and QPixmap
         h, w, ch = frame_rgb.shape
         bytes_per_line = ch * w
         q_image = QImage(frame_rgb.data, w, h, bytes_per_line, QImage.Format_RGB888)
         pixmap = QPixmap.fromImage(q_image)
-        
+
         # Display with aspect ratio preservation
         self.camera_feed.setPixmap(pixmap.scaled(self.camera_feed.size(), Qt.KeepAspectRatio))
 
@@ -387,6 +390,65 @@ class MainWindow(QMainWindow):
         # Display the frame
         self.display_frame(frame)
 
+    def setup_recording_controls(self):
+        """Set up controls for video recording settings."""
+        self.recording_group = QGroupBox("Recording Settings:")
+        self.recording_group.setStyleSheet("QGroupBox::title { color: #00FFFF; }")
+        self.recording_layout = QVBoxLayout()
+
+        # Enable/disable recording checkbox
+        self.recording_enabled_cb = QCheckBox("Enable Video Recording")
+        self.recording_enabled_cb.setChecked(self.settings_manager.get("recording_enabled", True))
+        self.recording_enabled_cb.toggled.connect(self.on_recording_enabled_change)
+        self.recording_layout.addWidget(self.recording_enabled_cb)
+        # Add tooltip to recording checkbox
+        self.recording_enabled_cb.setToolTip("Enable or disable automatic recording when motion is detected")
+
+        # Cooldown slider and label
+        cooldown_layout = QHBoxLayout()
+        cooldown_label = QLabel("Motion Cooldown:")
+        self.cooldown_value_label = QLabel(f"{self.settings_manager.get('motion_cooldown', MOTION_COOLDOWN):.1f}s")
+        cooldown_layout.addWidget(cooldown_label)
+        cooldown_layout.addWidget(self.cooldown_value_label)
+        self.recording_layout.addLayout(cooldown_layout)
+
+        self.cooldown_slider = QSlider(Qt.Horizontal)
+        self.cooldown_slider.setRange(1, 100)  # 0.1s to 10.0s
+        self.cooldown_slider.setValue(int(self.settings_manager.get("motion_cooldown", MOTION_COOLDOWN) * 10))
+        self.cooldown_slider.valueChanged.connect(self.on_cooldown_change)
+        self.recording_layout.addWidget(self.cooldown_slider)
+        # Add tooltip to cooldown slider
+        self.cooldown_slider.setToolTip(
+            "Set the minimum time between recordings (in seconds)"
+        )
+
+        # Add to control panel
+        self.recording_group.setLayout(self.recording_layout)
+        self.control_layout.addWidget(self.recording_group)
+
+    def on_recording_enabled_change(self, enabled):
+        """Handle recording enabled/disabled toggle."""
+        self.settings_manager.set("recording_enabled", enabled)
+
+        # Update cooldown slider enabled state
+        self.cooldown_slider.setEnabled(enabled)
+
+        # Update motion detector
+        self.motion_detector.recording_enabled = enabled
+
+        status = "enabled" if enabled else "disabled"
+        self.status_label.setText(f"Recording {status}")
+
+    def on_cooldown_change(self, value):
+        """Handle motion cooldown slider change."""
+        cooldown = value / 10.0  # Convert to seconds (0.1 to 10.0)
+        self.settings_manager.set("motion_cooldown", cooldown)
+
+        # Update the display label
+        self.cooldown_value_label.setText(f"{cooldown:.1f}s")
+
+        # Update motion detector
+        self.motion_detector.motion_cooldown = cooldown
 
     def update_feed(self):
         """Update the camera feed with motion detection."""
@@ -477,7 +539,6 @@ class MainWindow(QMainWindow):
             self.status_label.setText(f"Recalled: {file_path}")
         except Exception as e:
             self.status_label.setText(f"Error Recalling Image: {str(e)}")
-
 
     def browse_recordings(self):
         """Open file dialog to browse and open recorded videos."""

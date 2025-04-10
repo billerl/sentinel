@@ -39,9 +39,11 @@ class MotionDetector:
         # Video recording properties
         self.video_writer = None
         self.recording = False
+        self.recording_enabled = True  # Add this line
         self.recording_start_time = 0
         self.last_motion_time = 0
         self.frames_recorded = 0
+        self.motion_cooldown = MOTION_COOLDOWN  # Add this line
 
         # Create video directory if it doesn't exist
         if not os.path.exists(VIDEO_DIR):
@@ -137,42 +139,48 @@ class MotionDetector:
     def check_recording_status(self, motion_detected, frame):
         """
         Check if recording should start, continue, or stop based on motion detection.
-
+        
         Args:
             motion_detected: Whether motion was detected in the current frame
             frame: The current frame
-
+            
         Returns:
             Tuple of (recording_status, video_path)
             recording_status can be: "started", "recording", "stopped", or None
-            video_path will be the path to the current recording, or None
         """
         current_time = time.time()
-
+        
+        # If recording is disabled, stop any ongoing recording and return
+        if not self.recording_enabled and self.recording:
+            self.stop_recording()
+            return "stopped", None
+        elif not self.recording_enabled:
+            return None, None
+        
         # If motion detected and not recording, start recording
         if motion_detected and not self.recording:
             # Check cooldown period
-            if (current_time - self.last_motion_time) >= MOTION_COOLDOWN:
+            if (current_time - self.last_motion_time) >= self.motion_cooldown:
                 self.last_motion_time = current_time
-
+                
                 # Get frame dimensions
                 height, width = frame.shape[:2]
-
+                
                 # Start recording
                 video_path = self.start_recording((width, height))
                 if video_path:
                     return "started", video_path
-
+        
         # If recording, write the frame
         if self.recording:
             self.write_frame(frame)
-
+            
             # If motion detected, update the last motion time
             if motion_detected:
                 self.last_motion_time = current_time
-
+                
             return "recording", None
-
+            
         return None, None
 
     def start_camera(self, camera_index: int) -> bool:

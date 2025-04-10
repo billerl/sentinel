@@ -36,7 +36,7 @@ VIDEO_DIR = "recorded_videos"  # Directory to store video recordings
 RECORDING_DURATION = 10.0  # Duration of recordings in seconds
 RECORDING_FPS = 20  # Frames per second for recordings
 VIDEO_CODEC = "XVID"  # Codec to use for recordings (XVID is widely supported)
-MOTION_COOLDOWN = 2.0  # Seconds to wait before starting a new recording after motion
+MOTION_COOLDOWN = 30.0  # Seconds to wait before starting a new recording after motion
 
 # Application stylesheet - Dark theme with cyan accents
 STYLESHEET = """

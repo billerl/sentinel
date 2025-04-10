@@ -13,13 +13,14 @@ from sentinel.constants import (
     DEFAULT_VOLUME,
     DEFAULT_WINDOW_SIZE,
     DEFAULT_FEED_SIZE,
-    SAVE_DEBOUNCE_INTERVAL
+    SAVE_DEBOUNCE_INTERVAL,
+    MOTION_COOLDOWN
 )
 
 
 class SettingsManager:
     """Handles loading and saving application settings."""
-    
+
     def __init__(self, settings_file: str = SETTINGS_FILE):
         """
         Initialize the settings manager.
@@ -38,10 +39,13 @@ class SettingsManager:
             "feed_active": False,
             "window_size": DEFAULT_WINDOW_SIZE,
             "feed_size": DEFAULT_FEED_SIZE,
+            # Add new recording settings
+            "recording_enabled": True,  # Enable recording by default
+            "motion_cooldown": MOTION_COOLDOWN,  # Use value from constants
         }
         self.settings = self.default_settings.copy()
         self.load_settings()
-    
+
     def load_settings(self) -> Dict[str, Any]:
         """
         Load settings from the settings file.
@@ -58,9 +62,9 @@ class SettingsManager:
         except (json.JSONDecodeError, PermissionError, OSError) as e:
             print(f"Error loading settings: {e}")
             print("Using default settings")
-        
+
         return self.settings
-    
+
     def save_settings(self, settings: Dict[str, Any] = None) -> bool:
         """
         Save settings to the settings file with debouncing.
@@ -74,10 +78,10 @@ class SettingsManager:
         current_time = time.time()
         if (current_time - self.last_save_time) < SAVE_DEBOUNCE_INTERVAL:
             return False  # Skip saving if called too soon
-        
+
         if settings:
             self.settings.update(settings)
-        
+
         try:
             print("Saving settings...")
             with open(self.settings_file, "w") as f:
@@ -88,7 +92,7 @@ class SettingsManager:
         except (PermissionError, OSError) as e:
             print(f"Error saving settings: {e}")
             return False
-    
+
     def get(self, key: str, default: Any = None) -> Any:
         """
         Get a setting value.
@@ -101,7 +105,7 @@ class SettingsManager:
             The setting value or default
         """
         return self.settings.get(key, default)
-    
+
     def set(self, key: str, value: Any, save: bool = True) -> None:
         """
         Set a setting value.
