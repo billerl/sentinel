@@ -14,7 +14,9 @@ from sentinel.constants import (
     DEFAULT_WINDOW_SIZE,
     DEFAULT_FEED_SIZE,
     SAVE_DEBOUNCE_INTERVAL,
-    MOTION_COOLDOWN
+    MOTION_COOLDOWN,
+    MIN_CONTOUR_AREA,
+    VAR_THRESHOLD
 )
 
 
@@ -42,6 +44,8 @@ class SettingsManager:
             # Add new recording settings
             "recording_enabled": True,  # Enable recording by default
             "motion_cooldown": MOTION_COOLDOWN,  # Use value from constants
+            "min_contour_area": MIN_CONTOUR_AREA,
+            "var_threshold": VAR_THRESHOLD,
         }
         self.settings = self.default_settings.copy()
         self.load_settings()

@@ -31,6 +31,8 @@ class MotionDetector:
         self.cap = None
         self.camera_index = 0
         self.feed_active = False
+        self.min_contour_area = MIN_CONTOUR_AREA
+        self.var_threshold = VAR_THRESHOLD
         self.fgbg = cv2.createBackgroundSubtractorMOG2(
             history=HISTORY_LENGTH,
             varThreshold=VAR_THRESHOLD,
@@ -218,6 +220,17 @@ class MotionDetector:
             self.cap.release()
             self.cap = None
 
+    # Method to update the variance threshold
+    # and recreate the background subtractor
+    def update_var_threshold(self, value):
+        """Update the variance threshold and recreate the background subtractor."""
+        self.var_threshold = value
+        self.fgbg = cv2.createBackgroundSubtractorMOG2(
+            history=HISTORY_LENGTH,
+            varThreshold=self.var_threshold,
+            detectShadows=DETECT_SHADOWS
+    )
+        
     # Modified detect_motion method that also handles recording
     def detect_motion(self):
         """
@@ -256,7 +269,7 @@ class MotionDetector:
             motion_rects = []
 
             for contour in contours:
-                if cv2.contourArea(contour) < MIN_CONTOUR_AREA:
+                if cv2.contourArea(contour) < self.min_contour_area:
                     continue
 
                 (x, y, w, h) = cv2.boundingRect(contour)

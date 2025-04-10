@@ -33,6 +33,10 @@ from sentinel.constants import (
     VIDEO_DIR,
     STYLESHEET,
     MOTION_COOLDOWN,
+    VAR_THRESHOLD,
+    MIN_CONTOUR_AREA,
+    HISTORY_LENGTH,
+    DETECT_SHADOWS,
 )
 from sentinel.detection import MotionDetector
 from sentinel.audio import AudioAlertSystem
@@ -50,6 +54,10 @@ class MainWindow(QMainWindow):
         motion_detector: MotionDetector,
         audio_system: AudioAlertSystem,
     ):
+        
+            # Apply sensitivity settings from stored settings
+        motion_detector.min_contour_area = settings_manager.get("min_contour_area", MIN_CONTOUR_AREA)
+        motion_detector.update_var_threshold(settings_manager.get("var_threshold", VAR_THRESHOLD))
         """
         Initialize the main window.
 
@@ -115,7 +123,8 @@ class MainWindow(QMainWindow):
         self.setup_camera_controls()
         self.setup_speech_controls()
         self.setup_orientation_controls()
-        self.setup_recording_controls()  # Add this line
+        self.setup_recording_controls() 
+        self.setup_motion_sensitivity_controls()
 
         # Add status label
         self.status_label = QLabel("Camera: Disconnected")
@@ -390,6 +399,56 @@ class MainWindow(QMainWindow):
         # Display the frame
         self.display_frame(frame)
 
+    def setup_motion_sensitivity_controls(self):
+        """Set up controls for motion detection sensitivity."""
+        self.sensitivity_group = QGroupBox("Motion Sensitivity:")
+        self.sensitivity_group.setStyleSheet("QGroupBox::title { color: #00FFFF; }")
+        self.sensitivity_layout = QVBoxLayout()
+
+        # Minimum contour area slider
+        contour_layout = QHBoxLayout()
+        contour_label = QLabel("Detection Size:")
+        self.contour_value_label = QLabel(
+            f"{self.settings_manager.get('min_contour_area', MIN_CONTOUR_AREA)}"
+        )
+        contour_layout.addWidget(contour_label)
+        contour_layout.addWidget(self.contour_value_label)
+        self.sensitivity_layout.addLayout(contour_layout)
+
+        self.contour_slider = QSlider(Qt.Horizontal)
+        self.contour_slider.setRange(100, 2000)  # Range for minimum contour area
+        self.contour_slider.setValue(
+            self.settings_manager.get("min_contour_area", MIN_CONTOUR_AREA)
+        )
+        self.contour_slider.valueChanged.connect(self.on_contour_size_change)
+        self.contour_slider.setToolTip(
+            "Adjust how large movement needs to be to trigger detection"
+        )
+        self.sensitivity_layout.addWidget(self.contour_slider)
+
+        # Variance threshold slider
+        variance_layout = QHBoxLayout()
+        variance_label = QLabel("Sensitivity:")
+        self.variance_value_label = QLabel(
+            f"{self.settings_manager.get('var_threshold', VAR_THRESHOLD)}"
+        )
+        variance_layout.addWidget(variance_label)
+        variance_layout.addWidget(self.variance_value_label)
+        self.sensitivity_layout.addLayout(variance_layout)
+
+        self.variance_slider = QSlider(Qt.Horizontal)
+        self.variance_slider.setRange(10, 100)  # Range for variance threshold
+        self.variance_slider.setValue(
+            self.settings_manager.get("var_threshold", VAR_THRESHOLD)
+        )
+        self.variance_slider.valueChanged.connect(self.on_variance_change)
+        self.variance_slider.setToolTip(
+            "Adjust how sensitive the detector is to changes (lower = more sensitive)"
+        )
+        self.sensitivity_layout.addWidget(self.variance_slider)
+        self.sensitivity_group.setLayout(self.sensitivity_layout)
+        self.control_layout.addWidget(self.sensitivity_group)
+
     def setup_recording_controls(self):
         """Set up controls for video recording settings."""
         self.recording_group = QGroupBox("Recording Settings:")
@@ -574,6 +633,22 @@ class MainWindow(QMainWindow):
             self.status_label.setText(f"Opened: {file_path}")
         except Exception as e:
             self.status_label.setText(f"Error opening video: {str(e)}")
+
+    def on_contour_size_change(self, value):
+        """Handle minimum contour area slider change."""
+        self.settings_manager.set("min_contour_area", value)
+        self.contour_value_label.setText(f"{value}")
+        self.motion_detector.min_contour_area = value
+
+    def on_variance_change(self, value):
+        """Handle variance threshold slider change."""
+        self.settings_manager.set("var_threshold", value)
+        self.variance_value_label.setText(f"{value}")
+
+        # This requires recreating the background subtractor
+        self.motion_detector.fgbg = cv2.createBackgroundSubtractorMOG2(
+            history=HISTORY_LENGTH, varThreshold=value, detectShadows=DETECT_SHADOWS
+        )
 
     def on_camera_select(self, value: str) -> None:
         """
